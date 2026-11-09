@@ -1,0 +1,61 @@
+name: Build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch dependencies
+        run: git clone --depth 1 --branch 8.0.4 https://github.com/juce-framework/JUCE.git libs/JUCE
+
+      - name: Fetch fonts (Bagel Fat One, Anton, Space Grotesk - SIL OFL)
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/google/fonts.git gf
+          cd gf && git sparse-checkout set ofl/bagelfatone ofl/anton ofl/spacegrotesk && cd ..
+          python3 -m venv /tmp/ft && /tmp/ft/bin/pip install -q fonttools
+          mkdir -p fonts
+          /tmp/ft/bin/pyftsubset gf/ofl/bagelfatone/BagelFatOne-Regular.ttf --unicodes="U+0020-007E,U+00A0-00FF,U+2022,U+2013,U+2014,U+2026,U+2212" --output-file=fonts/BagelFatOne-Latin.ttf
+          /tmp/ft/bin/fonttools varLib.instancer "gf/ofl/spacegrotesk/SpaceGrotesk[wght].ttf" wght=500 -o fonts/SpaceGrotesk-Medium.ttf
+          /tmp/ft/bin/fonttools varLib.instancer "gf/ofl/spacegrotesk/SpaceGrotesk[wght].ttf" wght=700 -o fonts/SpaceGrotesk-Bold.ttf
+          cp gf/ofl/anton/Anton-Regular.ttf fonts/
+          ls -la fonts
+
+      - name: "Engine self-test"
+        run: |
+          clang++ -std=c++17 -O2 -ISource tests/engine_test.cpp -o engine_test
+          ./engine_test
+
+      - name: "Configure (universal: Apple Silicon + Intel)"
+        run: cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+
+      - name: Build
+        run: cmake --build build --config Release --target MeloDIG_VST3 MeloDIG_AU -- -quiet
+
+      - name: Ad-hoc sign and package
+        run: |
+          mkdir -p dist
+          cp -R build/MeloDIG_artefacts/Release/VST3/MeloDIG.vst3 dist/
+          cp -R build/MeloDIG_artefacts/Release/AU/MeloDIG.component dist/
+          codesign --force --deep -s - dist/MeloDIG.vst3
+          codesign --force --deep -s - dist/MeloDIG.component
+          lipo -info dist/MeloDIG.vst3/Contents/MacOS/MeloDIG
+          cd dist && ditto -c -k --keepParent MeloDIG.vst3 MeloDIG-VST3-macOS.zip && ditto -c -k --keepParent MeloDIG.component MeloDIG-AU-macOS.zip
+
+      - name: Validate AU
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R dist/MeloDIG.component ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -v aufx Mdg1 Mdig
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MeloDIG-macOS
+          path: |
+            dist/MeloDIG-VST3-macOS.zip
+            dist/MeloDIG-AU-macOS.zip
