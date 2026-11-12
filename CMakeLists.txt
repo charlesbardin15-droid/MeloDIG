@@ -17,7 +17,7 @@ if(APPLE)
 endif()
 
 juce_add_plugin(MeloDIG
-    COMPANY_NAME "MeloDIG"
+    COMPANY_NAME "Carlito"
     BUNDLE_ID "org.melodig.melodig"
     PLUGIN_MANUFACTURER_CODE Mdig
     PLUGIN_CODE Mdg1
