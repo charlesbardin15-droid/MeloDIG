@@ -120,6 +120,7 @@ bool MeloDigProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 
 void MeloDigProcessor::prepareToPlay (double sampleRate, int)
 {
+    licence.refresh();
     currentSampleRate.store (sampleRate);
     setLatencySamples (0);
 }
@@ -152,6 +153,7 @@ void MeloDigProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         }
     hostPlaying.store (playing);
     if (hasTime) hostPos.store (time);
+    if (! licence.audioAllowed()) return;   // essai terminé : la piste passe sans modification
 
     // ---- Transfer (recording the track while the host plays) ----
     const auto tr = transfer.load();
