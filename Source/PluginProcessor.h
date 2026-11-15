@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
 #include "MeloEngine.h"
+#include "CarliLicence.h"
 
 // The recorded take, at the host sample rate.
 struct Clip
@@ -84,6 +85,8 @@ public:
 
     static juce::File getDataFolder();
     void timerTick();                     // called by the editor's timer and the internal one
+
+    carlito::Licence licence { "MDG" };   // essai 14 jours / clé
 
 private:
     class Worker;
