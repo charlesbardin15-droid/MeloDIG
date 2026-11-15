@@ -891,7 +891,24 @@ MeloDigEditor::MeloDigEditor (MeloDigProcessor& p)
     setWantsKeyboardFocus (true);
     setResizable (true, true);
     setResizeLimits (960, 640, 2400, 1500);
-    setSize (1180, 760);
+
+    licenceTheme.productName = "MeloDIG";
+    licenceTheme.accent = ui::green; licenceTheme.onAccent = ui::card;
+    licenceTheme.barFill = ui::card; licenceTheme.barInk = ui::green;
+    licenceTheme.ink = ui::ink; licenceTheme.inkSoft = ui::inkSoft;
+    licenceTheme.panel = ui::card; licenceTheme.outline = ui::green; licenceTheme.field = juce::Colours::white;
+    licenceTheme.backdrop = ui::greenDeep.withAlpha (0.82f); licenceTheme.alert = juce::Colour (0xffc0392b);
+    licenceTheme.title = ui::display (30.0f); licenceTheme.caps = ui::caps (14.0f);
+    licenceTheme.body = ui::font (13.0f); licenceTheme.bodyBold = ui::font (13.0f, true);
+    licenceTheme.radius = 14.0f;
+    addChildComponent (bar);
+    addChildComponent (activation);
+    bar.onActivate = [this] { activation.show(); };
+    activation.onClose = [this] { activation.setVisible (false); grabKeyboardFocus(); };
+    activation.onActivated = [this] { juce::Timer::callAfterDelay (1400, [sp = juce::Component::SafePointer<MeloDigEditor> (this)] { if (sp) { sp->activation.setVisible (false); sp->updateLicenceUi(); } }); };
+    bar.setVisible (proc.licence.getState() != carlito::Licence::State::licensed);
+    setSize (1180, 760 + barHeight());
+    if (proc.licence.getState() == carlito::Licence::State::expired) activation.show();
     timerCallback();
     startTimerHz (30);
 }
@@ -958,8 +975,16 @@ bool MeloDigEditor::keyPressed (const juce::KeyPress& k)
     return false;
 }
 
+void MeloDigEditor::updateLicenceUi()
+{
+    const bool show = proc.licence.getState() != carlito::Licence::State::licensed;
+    if (show != bar.isVisible()) { bar.setVisible (show); resized(); repaint(); }
+    bar.update();
+}
+
 void MeloDigEditor::timerCallback()
 {
+    if (++licenceTicks >= 30 * 60) { licenceTicks = 0; proc.licence.refresh(); updateLicenceUi(); }   // chaque minute
     const bool changed = view.refresh();
     if (changed || proc.getNotesVersion() != lastVersion) { lastVersion = proc.getNotesVersion(); updateInspector(); }
 
@@ -1063,7 +1088,10 @@ void MeloDigEditor::paint (juce::Graphics& g)
 void MeloDigEditor::resized()
 {
     cards.clear();
-    auto full = getLocalBounds();
+    const int top = barHeight();
+    bar.setBounds (0, 0, getWidth(), top);
+    activation.setBounds (getLocalBounds());
+    auto full = getLocalBounds().withTrimmedTop (top);
     bandArea = full.withHeight (92);
     auto area = full.reduced (18, 0);
     auto header = area.removeFromTop (92).reduced (0, 13);
