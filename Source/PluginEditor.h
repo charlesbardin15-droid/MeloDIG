@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
 #include "Style.h"
+#include "CarliLicenceUI.h"
 
 class MeloDigEditor;
 
@@ -149,6 +150,14 @@ private:
     juce::Rectangle<int> bandArea, logoArea, headerButtons;
     int lastVersion = -1;
     float pulse = 0.0f;
+
+    // Essai / activation
+    int barHeight() const { return bar.isVisible() ? carlito::LicenceBar::height : 0; }
+    void updateLicenceUi();
+    carlito::LicenceTheme licenceTheme;
+    carlito::LicenceBar bar { proc.licence, licenceTheme };
+    carlito::ActivationPanel activation { proc.licence, licenceTheme };
+    int licenceTicks = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MeloDigEditor)
 };
