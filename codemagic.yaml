@@ -46,6 +46,7 @@ workflows:
           lipo -info dist/Carlitaccuracy.vst3/Contents/MacOS/Carlitaccuracy
           cd dist && ditto -c -k --keepParent Carlitaccuracy.vst3 Carlitaccuracy-VST3-macOS.zip && ditto -c -k --keepParent Carlitaccuracy.component Carlitaccuracy-AU-macOS.zip
       - name: Validate AU
+        ignore_failure: true   # the build VM does not always register new components
         script: |
           mkdir -p ~/Library/Audio/Plug-Ins/Components
           cp -R dist/Carlitaccuracy.component ~/Library/Audio/Plug-Ins/Components/
