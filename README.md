@@ -1,15 +1,15 @@
-# MeloDIG
+# Carlitaccuracy
 
 Éditeur de voix note par note (VST3 / AU), dans la même famille que FreeTune et FreePitch.
 Pour une voix ou un instrument qui joue une note à la fois.
 
-## Utilisation dans Ableton
+## Utilisation
 
-1. Mets MeloDIG sur la piste de voix.
-2. Clique sur **TRANSFÉRER**, puis lance la lecture : MeloDIG enregistre la piste.
+1. Mets Carlitaccuracy sur la piste de voix.
+2. Clique sur **TRANSFÉRER**, puis lance la lecture : Carlitaccuracy enregistre la piste.
 3. Arrête la lecture : les notes apparaissent sous forme de blobs, avec leur courbe de hauteur.
-4. Édite, puis relance la lecture : MeloDIG joue la voix corrigée, calée sur la timeline.
-   (**PRÉ-ÉCOUTE** permet d'écouter sans lancer Ableton ; clic sur la règle = écouter à partir de là.)
+4. Édite, puis relance la lecture : Carlitaccuracy joue la voix corrigée, calée sur la timeline.
+   (**PRÉ-ÉCOUTE** permet d'écouter sans lancer la lecture du logiciel ; clic sur la règle = écouter à partir de là.)
 
 ## Outils
 
@@ -25,7 +25,7 @@ Pour une voix ou un instrument qui joue une note à la fois.
 Macros : **CORRIGER LA HAUTEUR** (centre + dérive, sur la gamme choisie) et **QUANTIFIER LE TEMPS** (grille du projet).
 Clavier : Cmd+Z / Maj+Cmd+Z, Cmd+A, flèches haut/bas (Maj = octave), Suppr = couper la note.
 
-Les prises sont gardées dans `~/Musique/MeloDIG/Takes` pour que le projet Ableton les retrouve.
+Les prises sont gardées dans `~/Musique/MeloDIG/Takes` pour que ton projet les retrouve.
 Ce qui n'est pas modifié reste identique à l'enregistrement, au sample près.
 
 ## Compiler
