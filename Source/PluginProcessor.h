@@ -79,6 +79,8 @@ public:
     double getPlaySecondsInClip() const;  // host or preview position relative to the clip
     void setPreviewing (bool, double fromSeconds = 0.0);
     bool isPreviewing() const { return previewing.load(); }
+    void setListenOriginal (bool b) { listenOriginal.store (b); }   // AVANT / APRÈS
+    bool isListeningOriginal() const { return listenOriginal.load(); }
     double getHostBpm() const { return hostBpm.load(); }
     double getCurrentSampleRate() const { return currentSampleRate.load(); }
     juce::String getLastError() const;
@@ -131,6 +133,7 @@ private:
     std::atomic<long long> hostPos { 0 };
     std::atomic<double> hostBpm { 120.0 };
     std::atomic<bool> previewing { false };
+    std::atomic<bool> listenOriginal { false };
     std::atomic<long long> previewPos { 0 };
 
     std::atomic<bool> analysing { false }, rendering { false };
