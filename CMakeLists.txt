@@ -46,6 +46,11 @@ juce_add_binary_data(MeloDIGData SOURCES
     fonts/SpaceGrotesk-Bold.ttf)
 set_target_properties(MeloDIGData PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Windows (MSVC): the sources are UTF-8 (accents in the interface).
+if(MSVC)
+    target_compile_options(MeloDIG PRIVATE /utf-8)
+endif()
+
 target_compile_definitions(MeloDIG PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
