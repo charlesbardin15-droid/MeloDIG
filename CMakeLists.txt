@@ -22,7 +22,7 @@ juce_add_plugin(MeloDIG
     PLUGIN_MANUFACTURER_CODE Mdig
     PLUGIN_CODE Mdg1
     FORMATS ${MELODIG_FORMATS}
-    PRODUCT_NAME "MeloDIG"
+    PRODUCT_NAME "Carlitaccuracy"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
@@ -31,7 +31,7 @@ juce_add_plugin(MeloDIG
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES Fx Pitch_Shift
     AU_MAIN_TYPE kAudioUnitType_Effect
-    DESCRIPTION "Note-by-note pitch, timing, formant and volume editing of a monophonic recording")
+    DESCRIPTION "Carlitaccuracy: note-by-note pitch, timing, formant and volume editing of a monophonic recording")
 
 target_sources(MeloDIG PRIVATE
     Source/PluginProcessor.cpp
