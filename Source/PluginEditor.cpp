@@ -109,6 +109,7 @@ bool NoteView::refresh()
     auto c = p.getClip();
     if (v == version && c == clip) return false;
     const bool newClip = c != clip;
+    const bool hadNotes = ! notes.empty();
     clip = c;
     track = p.getTrack();
     notes = p.getNotes();
@@ -116,7 +117,7 @@ bool NoteView::refresh()
     for (auto it = selection.begin(); it != selection.end();)
         if (*it >= notes.size()) it = selection.erase (it); else ++it;
     rebuildCurves();
-    if (newClip || (notes.size() > 0 && version >= 0 && dragBase.empty() && newClip)) zoomToFit();
+    if (newClip || (! hadNotes && ! notes.empty())) zoomToFit();   // fit again once the analysis has found the notes
     repaint();
     return true;
 }
@@ -141,6 +142,19 @@ void NoteView::zoomToFit()
         pxPerSemi = (float) juce::jlimit (6.0, 30.0, r.getHeight() / rows);
         topMidi = (hi + lo) / 2.0 + r.getHeight() / pxPerSemi / 2.0;
     }
+    clampView();
+    repaint();
+}
+
+void NoteView::zoomBy (double factor)
+{
+    const auto roll = rollArea();
+    const double atSec = secAt ((float) roll.getCentreX());
+    const double atMidi = midiAt ((float) roll.getCentreY());
+    pxPerSec = juce::jlimit (8.0, 3000.0, pxPerSec * factor);
+    pxPerSemi = (float) juce::jlimit (5.0, 40.0, pxPerSemi * std::sqrt (factor));
+    viewStart = atSec - (roll.getCentreX() - roll.getX()) / pxPerSec;
+    topMidi = atMidi + (roll.getCentreY() - roll.getY()) / pxPerSemi;
     clampView();
     repaint();
 }
@@ -221,16 +235,16 @@ void NoteView::paint (juce::Graphics& g)
     {
         juce::Graphics::ScopedSaveState ss (g);
         g.reduceClipRegion (roll);
-        g.fillAll (ui::card);
+        g.fillAll (ui::rollBg);
         const int lo = (int) std::floor (midiAt ((float) roll.getBottom())), hi = (int) std::ceil (topMidi);
         for (int m = lo; m <= hi; ++m)
         {
             const float y0 = yOf (m + 0.5), y1 = yOf (m - 0.5);
             const bool black = (m % 12 == 1 || m % 12 == 3 || m % 12 == 6 || m % 12 == 8 || m % 12 == 10);
             const bool inScale = sc.type == 0 ? ! black : sc.contains (m);
-            g.setColour (inScale ? ui::card : ui::cardDeep);
+            g.setColour (inScale ? ui::rollBg : ui::rollAlt);
             g.fillRect (juce::Rectangle<float> ((float) roll.getX(), y0, (float) roll.getWidth(), y1 - y0));
-            g.setColour (ui::tint.withAlpha (m % 12 == 0 ? 0.9f : 0.45f));
+            g.setColour (ui::rollLine.withAlpha (m % 12 == 0 ? 1.0f : 0.6f));
             g.fillRect ((float) roll.getX(), y1 - (m % 12 == 0 ? 1.5f : 0.75f), (float) roll.getWidth(), m % 12 == 0 ? 1.5f : 0.75f);
         }
     }
@@ -256,7 +270,7 @@ void NoteView::paint (juce::Graphics& g)
             if (t > t1) break;
             const float x = xOf (t);
             const bool bar = std::abs (std::fmod (b, 4.0)) < 1e-6;
-            g.setColour (ui::tint.withAlpha (bar ? 1.0f : 0.5f));
+            g.setColour (ui::rollLine.withAlpha (bar ? 1.0f : 0.6f));
             g.fillRect (x, (float) roll.getY(), bar ? 1.5f : 0.75f, (float) roll.getHeight());
             if (bar || step >= 1.0)
             {
@@ -311,9 +325,9 @@ void NoteView::paint (juce::Graphics& g)
         g.setFont (ui::display (26.0f));
         juce::String title, body;
         const auto tr = p.getTransferState();
-        if (tr == MeloDigProcessor::Transfer::armed) { title = fr ("prêt à enregistrer"); body = fr ("Lance la lecture dans Ableton : MeloDIG enregistre la piste. Arrête la lecture quand c'est fini."); }
+        if (tr == MeloDigProcessor::Transfer::armed) { title = fr ("prêt à enregistrer"); body = fr ("Lance la lecture dans Ableton : Carlitaccuracy enregistre la piste. Arrête la lecture quand c'est fini."); }
         else if (tr == MeloDigProcessor::Transfer::recording) { title = fr ("enregistrement… ") + num (p.getTransferSeconds(), 1) + " s"; body = fr ("Laisse jouer jusqu'au bout de la partie, puis arrête la lecture."); }
-        else if (clip != nullptr && p.isAnalysing()) { title = fr ("analyse des notes…"); body = fr ("MeloDIG cherche les notes et leur hauteur."); }
+        else if (clip != nullptr && p.isAnalysing()) { title = fr ("analyse des notes…"); body = fr ("Carlitaccuracy cherche les notes et leur hauteur."); }
         else if (clip != nullptr) { title = fr ("pas de note trouvée"); body = fr ("La prise semble vide ou trop bruitée. Retransfère une voix seule (une note à la fois)."); }
         else { title = fr ("transfère ta voix"); body = fr ("1. Clique sur TRANSFÉRER (en haut).\n2. Lance la lecture dans Ableton : la piste est enregistrée.\n3. Arrête la lecture : les notes apparaissent, tu peux les éditer."); }
         g.drawText (title, t.removeFromTop (34), juce::Justification::centredLeft);
@@ -341,7 +355,7 @@ void NoteView::paint (juce::Graphics& g)
             const float h = clip->peak[(size_t) k] * 26.0f;
             w.addRectangle ((float) x, mid - h, 1.5f, h * 2 + 0.5f);
         }
-        g.setColour (ui::green.withAlpha (0.12f));
+        g.setColour (ui::noteFill.withAlpha (0.10f));
         g.fillPath (w);
     }
 
@@ -380,12 +394,12 @@ void NoteView::paint (juce::Graphics& g)
             for (auto& q : top) blob.lineTo (q);
             for (auto it = bottom.rbegin(); it != bottom.rend(); ++it) blob.lineTo (*it);
             blob.closeSubPath();
-            const auto fill = n.muted ? ui::card : (sel ? ui::brown : ui::green);
+            const auto fill = n.muted ? ui::rollBg : (sel ? ui::green : ui::noteFill);
             g.setColour (ui::ink.withAlpha (0.25f));
             g.fillPath (blob, juce::AffineTransform::translation (2.0f, 2.0f));
             g.setColour (fill);
             g.fillPath (blob);
-            g.setColour (sel ? ui::ink : ui::greenDeep);
+            g.setColour (ui::green);
             if (n.muted)
             {
                 juce::Path dashed;
@@ -393,13 +407,13 @@ void NoteView::paint (juce::Graphics& g)
                 juce::PathStrokeType (1.5f).createDashedStroke (dashed, blob, dash, 2);
                 g.fillPath (dashed);
             }
-            else g.strokePath (blob, juce::PathStrokeType (1.2f));
+            else g.strokePath (blob, juce::PathStrokeType (1.8f));
 
             // label
             if (x1 - x0 > 46 && pxPerSemi >= 10)
             {
                 const int k = (int) std::lround (n.targetCentre());
-                g.setColour (n.muted ? ui::inkSoft : ui::card);
+                g.setColour (n.muted ? ui::inkSoft : ui::rollBg);
                 g.setFont (ui::caps (10.5f));
                 g.drawText (noteName (k), juce::Rectangle<float> (x0 + 6, yc - 7, 40, 14), juce::Justification::centredLeft);
             }
@@ -437,7 +451,9 @@ void NoteView::paint (juce::Graphics& g)
                 g.setColour (ui::inkSoft.withAlpha (0.35f));
                 g.strokePath (orig, juce::PathStrokeType (1.0f));
             }
-            g.setColour (ui::ink.withAlpha (0.85f));
+            g.setColour (ui::noteFill);   // violet edge so the glides between notes show on the white roll
+            g.strokePath (target, juce::PathStrokeType (3.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.setColour (ui::rollBg.withAlpha (0.95f));
             g.strokePath (target, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         }
     }
@@ -728,9 +744,6 @@ MeloDigEditor::MeloDigEditor (MeloDigProcessor& p)
                { "FORMANT", "timbre" }, { "VOLUME", "dB" }, { fr ("SÉPARER"), "couper" } })
 {
     setLookAndFeel (&lnf);
-    pagePattern = doodle::pattern (240, ui::green.withAlpha (0.07f));
-    bandPattern = doodle::pattern (240, ui::card.withAlpha (0.10f));
-    grainImage = doodle::grain (160);
 
     auto band = [this] (juce::TextButton& b, const juce::String& text, const juce::String& tip)
     {
@@ -743,7 +756,17 @@ MeloDigEditor::MeloDigEditor (MeloDigProcessor& p)
     band (playButton, fr ("PRÉ-ÉCOUTE"), fr ("Écoute la prise corrigée sans lancer Ableton (clic sur la règle = écouter à partir de là)"));
     band (undoButton, "ANNULER", fr ("Annuler (Cmd+Z)"));
     band (redoButton, fr ("RÉTABLIR"), fr ("Rétablir (Maj+Cmd+Z)"));
+    band (beforeButton, "AVANT", fr ("Écouter la prise d'origine, sans tes retouches"));
+    band (afterButton, fr ("APRÈS"), fr ("Écouter la prise retouchée"));
+    band (zoomOutButton, fr ("−"), fr ("Dézoomer (touche −)"));
+    band (zoomInButton, "+", fr ("Zoomer (touche +)"));
     band (fitButton, "TOUT VOIR", fr ("Zoom pour voir toute la prise (Cmd+molette = zoom, Alt+molette = zoom vertical)"));
+    for (auto* b : { &zoomOutButton, &zoomInButton }) b->getProperties().set ("fontSize", 20.0f);
+    beforeButton.onClick = [this] { setListenOriginal (true); };
+    afterButton.onClick = [this] { setListenOriginal (false); };
+    zoomOutButton.onClick = [this] { view.zoomBy (1.0 / 1.4); repaint (zoomReadout); };
+    zoomInButton.onClick = [this] { view.zoomBy (1.4); repaint (zoomReadout); };
+    afterButton.setToggleState (true, juce::dontSendNotification);
     transferButton.onClick = [this]
     {
         if (proc.getTransferState() == MeloDigProcessor::Transfer::idle) proc.startTransfer();
@@ -892,12 +915,12 @@ MeloDigEditor::MeloDigEditor (MeloDigProcessor& p)
     setResizable (true, true);
     setResizeLimits (960, 640, 2400, 1500);
 
-    licenceTheme.productName = "MeloDIG";
+    licenceTheme.productName = "Carlitaccuracy";
     licenceTheme.accent = ui::green; licenceTheme.onAccent = ui::card;
     licenceTheme.barFill = ui::card; licenceTheme.barInk = ui::green;
     licenceTheme.ink = ui::ink; licenceTheme.inkSoft = ui::inkSoft;
-    licenceTheme.panel = ui::card; licenceTheme.outline = ui::green; licenceTheme.field = juce::Colours::white;
-    licenceTheme.backdrop = ui::greenDeep.withAlpha (0.82f); licenceTheme.alert = juce::Colour (0xffc0392b);
+    licenceTheme.panel = ui::card; licenceTheme.outline = ui::green; licenceTheme.field = ui::lavender;
+    licenceTheme.backdrop = ui::night.withAlpha (0.82f); licenceTheme.alert = juce::Colour (0xffc0392b);
     licenceTheme.title = ui::display (30.0f); licenceTheme.caps = ui::caps (14.0f);
     licenceTheme.body = ui::font (13.0f); licenceTheme.bodyBold = ui::font (13.0f, true);
     licenceTheme.radius = 14.0f;
@@ -958,6 +981,12 @@ bool MeloDigEditor::keyPressed (const juce::KeyPress& k)
     if (k.getKeyCode() == 'Z' && mods.isCommandDown()) { if (mods.isShiftDown()) proc.redo(); else proc.undo(); return true; }
     if (k.getKeyCode() == 'A' && mods.isCommandDown()) { view.selectAll(); return true; }
     if (k == juce::KeyPress::escapeKey) { view.clearSelection(); updateInspector(); return true; }
+    {
+        const auto c = k.getTextCharacter();
+        const int code = k.getKeyCode();
+        if (c == '+' || c == '=' || code == juce::KeyPress::numberPadAdd) { view.zoomBy (1.4); repaint (zoomReadout); return true; }
+        if (c == '-' || c == '_' || code == juce::KeyPress::numberPadSubtract) { view.zoomBy (1.0 / 1.4); repaint (zoomReadout); return true; }
+    }
     if (k == juce::KeyPress::deleteKey || k == juce::KeyPress::backspaceKey)
     {
         if (view.getSelection().empty()) return true;
@@ -1007,7 +1036,7 @@ void MeloDigEditor::timerCallback()
     else if (auto c = proc.getClip()) s = fr ("prise : ") + num (c->lengthSeconds(), 1) + " s  ·  " + juce::String ((int) view.getNotes().size()) + " notes";
     else s = fr ("aucune prise");
     if (proc.getLastError().isNotEmpty() && tr == MeloDigProcessor::Transfer::idle && proc.getClip() == nullptr) s = proc.getLastError();
-    if (s != statusText) { statusText = s; repaint (bandArea); }
+    if (s != statusText) { statusText = s; repaint (statusArea.expanded (24, 4)); }
 
     pulse += 0.15f;
     if (tr != MeloDigProcessor::Transfer::idle || proc.isHostPlaying() || proc.isPreviewing() || proc.isAnalysing()) view.repaint();
@@ -1038,47 +1067,46 @@ void MeloDigEditor::drawCard (juce::Graphics& g, const Card& c, int number) cons
     }
 }
 
+void MeloDigEditor::setListenOriginal (bool original)
+{
+    proc.setListenOriginal (original);
+    beforeButton.setToggleState (original, juce::dontSendNotification);
+    afterButton.setToggleState (! original, juce::dontSendNotification);
+}
+
 void MeloDigEditor::paint (juce::Graphics& g)
 {
-    const auto b = getLocalBounds().toFloat();
-    g.fillAll (ui::bg);
-    g.setTiledImageFill (pagePattern, 0, 0, 1.0f);
-    g.fillRect (b);
+    if (pageImage.getWidth() != getWidth() || pageImage.getHeight() != getHeight())
+        pageImage = doodle::gradientPage (getWidth(), getHeight());
+    g.drawImageAt (pageImage, 0, 0);
 
-    juce::Path bandPath;
+    doodle::wordmark (g, logoArea.toFloat().withHeight (78.0f));
+
+    // status pill (right, under the header buttons)
     {
-        const float base = (float) bandArea.getBottom() - 4.0f;
-        bandPath.startNewSubPath (0, 0);
-        bandPath.lineTo (b.getRight(), 0);
-        for (float x = b.getRight(); x >= 0.0f; x -= 4.0f) bandPath.lineTo (x, base + 4.0f * std::sin (x * 0.045f));
-        bandPath.closeSubPath();
+        const auto sf = ui::font (12.0f, true);
+        auto r = statusArea.toFloat();
+        const float w = juce::jmin (r.getWidth(), ui::textWidth (sf, statusText) + 26.0f);
+        auto pill = r.withX (r.getRight() - w).withWidth (w);
+        g.setColour (ui::night.withAlpha (0.55f));
+        g.fillRoundedRectangle (pill, pill.getHeight() / 2.0f);
+        g.setColour (ui::card);
+        g.setFont (sf);
+        g.drawText (statusText, pill.reduced (12.0f, 0.0f), juce::Justification::centred, true);
+        if (proc.getTransferState() == MeloDigProcessor::Transfer::recording)
+        {
+            g.setColour (ui::card.withAlpha (0.5f + 0.5f * std::sin (pulse)));
+            g.fillEllipse (pill.getX() - 14.0f, pill.getCentreY() - 4.0f, 8.0f, 8.0f);
+        }
     }
-    g.setColour (ui::green);
-    g.fillPath (bandPath);
-    g.setTiledImageFill (bandPattern, 0, 0, 1.0f);
-    g.fillPath (bandPath);
-    g.setTiledImageFill (grainImage, 0, 0, 1.0f);
-    g.fillRect (b);
 
-    doodle::mascot (g, logoArea.withWidth (logoArea.getHeight()).toFloat());
-    auto textArea = juce::Rectangle<int> (logoArea.getX() + logoArea.getHeight() + 12, logoArea.getY() - 4, 280, logoArea.getHeight() + 8);
-    const auto logoFont = ui::display (40.0f);
-    g.setColour (ui::card);
-    g.setFont (logoFont);
-    g.drawText ("melodig", textArea.removeFromTop (44), juce::Justification::bottomLeft);
-    doodle::sparkle (g, { (float) textArea.getX() + ui::textWidth (logoFont, "melodig") + 10.0f, (float) textArea.getY() - 34.0f }, 15.0f, ui::card);
-    g.setColour (ui::card.withAlpha (0.75f));
-    g.setFont (ui::caps (12.0f));
-    g.drawText (fr ("[ ÉDITION DE LA VOIX NOTE PAR NOTE ]"), textArea, juce::Justification::topLeft);
-
-    // status under the header buttons
-    g.setColour (ui::card.withAlpha (0.85f));
-    g.setFont (ui::font (12.0f, true));
-    g.drawText (statusText, headerButtons.withY (headerButtons.getBottom() + 3).withHeight (16), juce::Justification::centredLeft);
-    if (proc.getTransferState() == MeloDigProcessor::Transfer::recording)
+    // zoom readout between - and +
     {
-        g.setColour (ui::brown.brighter (0.4f).withAlpha (0.5f + 0.5f * std::sin (pulse)));
-        g.fillEllipse ((float) transferButton.getX() - 16.0f, (float) transferButton.getBounds().getCentreY() - 5.0f, 10.0f, 10.0f);
+        auto r = zoomReadout.toFloat().reduced (0.0f, 2.0f).withTrimmedRight (3.0f).withTrimmedBottom (3.0f);
+        ui::sticker (g, r, r.getHeight() / 2.0f, ui::green, ui::green, ui::night, 3.0f);
+        g.setColour (ui::card);
+        g.setFont (ui::caps (13.0f));
+        g.drawText ("ZOOM " + juce::String (view.zoomPercent()) + " %", r, juce::Justification::centred, false);
     }
 
     int n = 0;
@@ -1092,43 +1120,53 @@ void MeloDigEditor::resized()
     bar.setBounds (0, 0, getWidth(), top);
     activation.setBounds (getLocalBounds());
     auto full = getLocalBounds().withTrimmedTop (top);
-    bandArea = full.withHeight (92);
     auto area = full.reduced (18, 0);
-    auto header = area.removeFromTop (92).reduced (0, 13);
-    logoArea = header.removeFromLeft (330).withHeight (58).withY (header.getY() + 1);
-    headerButtons = header.removeFromRight (juce::jmin (header.getWidth(), 640)).withHeight (38).withY (header.getY() + 3);
+
+    // header: wordmark left, transport right
+    auto header = area.removeFromTop (106).withTrimmedTop (14);
+    logoArea = header.removeFromLeft (470).withTrimmedTop (4);
     {
-        auto hb = headerButtons;
-        transferButton.setBounds (hb.removeFromLeft (150).reduced (2, 0));
-        playButton.setBounds (hb.removeFromLeft (130).reduced (2, 0));
-        hb.removeFromLeft (12);
-        undoButton.setBounds (hb.removeFromLeft (110).reduced (2, 0));
-        redoButton.setBounds (hb.removeFromLeft (110).reduced (2, 0));
-        fitButton.setBounds (hb.reduced (2, 0));
+        auto right = header.removeFromRight (juce::jmin (header.getWidth(), 650));
+        auto row = right.removeFromTop (40);
+        transferButton.setBounds (row.removeFromLeft (140).reduced (2, 0));
+        playButton.setBounds (row.removeFromLeft (122).reduced (2, 0));
+        row.removeFromLeft (8);
+        beforeButton.setBounds (row.removeFromLeft (86).reduced (2, 0));
+        afterButton.setBounds (row.removeFromLeft (86).reduced (2, 0));
+        row.removeFromLeft (8);
+        undoButton.setBounds (row.removeFromLeft (100).reduced (2, 0));
+        redoButton.setBounds (row.reduced (2, 0));
+        right.removeFromTop (8);
+        statusArea = right.removeFromTop (24);
     }
 
+    // view row: zoom on the left, key / snap on the right
+    auto viewRow = area.removeFromTop (44);
+    {
+        auto r = viewRow;
+        zoomOutButton.setBounds (r.removeFromLeft (46).reduced (2, 3));
+        zoomReadout = r.removeFromLeft (112).reduced (2, 3);
+        zoomInButton.setBounds (r.removeFromLeft (46).reduced (2, 3));
+        r.removeFromLeft (6);
+        fitButton.setBounds (r.removeFromLeft (118).reduced (2, 3));
+        detectButton.setBounds (r.removeFromRight (100).reduced (0, 4));
+        r.removeFromRight (6);
+        scaleBox.setBounds (r.removeFromRight (124).reduced (0, 5));
+        r.removeFromRight (6);
+        rootBox.setBounds (r.removeFromRight (70).reduced (0, 5));
+        r.removeFromRight (6);
+        snapBox.setBounds (r.removeFromRight (juce::jmin (190, r.getWidth())).reduced (0, 5));
+    }
     area.removeFromTop (10);
-    area.removeFromBottom (16);
-
-    // tool row
-    auto toolRow = area.removeFromTop (46);
-    {
-        auto r = toolRow;
-        auto right = r.removeFromRight (juce::jmin (470, r.getWidth() / 2));
-        tools.setBounds (r.withTrimmedRight (14));
-        detectButton.setBounds (right.removeFromRight (100).reduced (0, 5));
-        right.removeFromRight (6);
-        scaleBox.setBounds (right.removeFromRight (118).reduced (0, 6));
-        right.removeFromRight (6);
-        rootBox.setBounds (right.removeFromRight (70).reduced (0, 6));
-        right.removeFromRight (6);
-        snapBox.setBounds (right.reduced (0, 6));
-    }
-    area.removeFromTop (12);
-
-    // bottom cards
-    auto bottom = area.removeFromBottom (176);
     area.removeFromBottom (14);
+
+    // tools dock at the very bottom
+    tools.setBounds (area.removeFromBottom (54));
+    area.removeFromBottom (12);
+
+    // cards above the dock
+    auto bottom = area.removeFromBottom (176);
+    area.removeFromBottom (12);
     cards.push_back ({ area, {}, ui::green });
     view.setBounds (area.reduced (6).withTrimmedRight (3).withTrimmedBottom (3));
 
