@@ -20,7 +20,7 @@ namespace
 
 juce::FontOptions ui::font (float size, bool bold) { return juce::FontOptions (bold ? groteskBold() : grotesk()).withHeight (size); }
 juce::FontOptions ui::display (float size)         { return juce::FontOptions (bagel()).withHeight (size); }
-juce::FontOptions ui::caps (float size)            { return juce::FontOptions (anton()).withHeight (size).withKerningFactor (0.04f); }
+juce::FontOptions ui::caps (float size)            { return juce::FontOptions (groteskBold()).withHeight (size * 0.92f).withKerningFactor (0.06f); }
 
 float ui::textWidth (const juce::FontOptions& f, const juce::String& s)
 {
@@ -216,6 +216,175 @@ juce::Image doodle::pattern (int size, juce::Colour col)
     return img;
 }
 
+juce::Image doodle::gradientPage (int w, int h)
+{
+    // Lavender + periwinkle, soft light top-left, with film grain (not matte).
+    w = juce::jmax (8, w); h = juce::jmax (8, h);
+    juce::Image img (juce::Image::RGB, w, h, false);
+    {
+        juce::Graphics g (img);
+        g.fillAll (ui::violet);
+        const float W = (float) w, H = (float) h;
+        auto blob = [&] (float cx, float cy, float r, juce::Colour c)
+        {
+            juce::ColourGradient grad (c, cx * W, cy * H, c.withAlpha (0.0f), cx * W + r * H, cy * H, true);
+            grad.addColour (0.5, c.withAlpha (0.45f));
+            g.setGradientFill (grad);
+            g.fillRect (0.0f, 0.0f, W, H);
+        };
+        blob (0.05f, 0.05f, 0.8f, juce::Colour (0xfff1e4ff));   // light lavender
+        blob (0.60f, 0.60f, 0.8f, juce::Colour (0xff8f92ff));   // periwinkle
+        blob (1.00f, 0.10f, 0.5f, juce::Colour (0xff7a6cf0));   // deeper corner
+    }
+    juce::Random rnd (7);
+    juce::Image::BitmapData px (img, juce::Image::BitmapData::readWrite);
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+        {
+            const auto c = px.getPixelColour (x, y);
+            const float n = (float) rnd.nextFloat() - 0.5f, k = n * 0.10f;
+            px.setPixelColour (x, y, juce::Colour::fromFloatRGBA (juce::jlimit (0.0f, 1.0f, c.getFloatRed() + k),
+                                                                   juce::jlimit (0.0f, 1.0f, c.getFloatGreen() + k),
+                                                                   juce::jlimit (0.0f, 1.0f, c.getFloatBlue() + k), 1.0f));
+        }
+    return img;
+}
+
+// Custom "CARLIT" letters: very heavy geometric shapes on a 10-unit grid, quarter-circle
+// shoulders, diagonal cuts and stencil-like gaps.
+float doodle::carlitLetters (juce::Graphics& g, juce::Point<float> o, float height, juce::Colour col, int count)
+{
+    const float u = height / 10.0f;
+    float x = o.x;
+    const float gap = 0.9f * u;
+    struct Glyph { juce::Path shape, holes; };
+    std::vector<Glyph> glyphs;
+
+    auto rect = [&] (juce::Path& p, float x0, float y0, float x1, float y1) { p.addRectangle (x + x0 * u, o.y + y0 * u, (x1 - x0) * u, (y1 - y0) * u); };
+    auto poly = [&] (juce::Path& p, std::initializer_list<juce::Point<float>> pts)
+    {
+        bool first = true;
+        for (auto pt : pts) { const juce::Point<float> q (x + pt.x * u, o.y + pt.y * u); if (first) p.startNewSubPath (q); else p.lineTo (q); first = false; }
+        p.closeSubPath();
+    };
+    // quarter disc: centre (cx, cy), radius r, quadrant 0=top-left 1=top-right 2=bottom-right 3=bottom-left
+    auto quarter = [&] (juce::Path& p, float cx, float cy, float r, int q)
+    {
+        const float a0 = juce::MathConstants<float>::pi * (1.5f + 0.5f * (float) q);
+        p.startNewSubPath (x + cx * u, o.y + cy * u);
+        p.addCentredArc (x + cx * u, o.y + cy * u, r * u, r * u, 0.0f, a0, a0 + juce::MathConstants<float>::halfPi, false);
+        p.closeSubPath();
+    };
+    auto disc = [&] (juce::Path& p, float cx, float cy, float r) { p.addEllipse (x + (cx - r) * u, o.y + (cy - r) * u, 2 * r * u, 2 * r * u); };
+
+    // C: half-disc back + square jaws, the top jaw sliced at 45 degrees.
+    {
+        Glyph c;
+        quarter (c.shape, 5.0f, 5.0f, 5.0f, 0);
+        quarter (c.shape, 5.0f, 5.0f, 5.0f, 3);
+        rect (c.shape, 4.95f, 0.0f, 7.2f, 10.0f);
+        poly (c.shape, { { 7.15f, 0.0f }, { 8.8f, 0.0f }, { 7.15f, 3.1f } });
+        rect (c.shape, 7.15f, 6.9f, 8.6f, 10.0f);
+        disc (c.holes, 5.0f, 5.0f, 1.9f);
+        rect (c.holes, 5.0f, 3.1f, 8.9f, 6.9f);
+        glyphs.push_back (std::move (c));
+        x += 8.8f * u + gap;
+    }
+    // A: block with a big rounded top-right shoulder, square counter, open legs.
+    {
+        Glyph a;
+        rect (a.shape, 0.0f, 0.0f, 3.6f, 10.0f);
+        rect (a.shape, 3.5f, 4.4f, 8.0f, 10.0f);
+        rect (a.shape, 3.5f, 0.0f, 3.65f, 4.5f);
+        quarter (a.shape, 3.6f, 4.4f, 4.4f, 1);
+        rect (a.holes, 3.0f, 3.2f, 5.0f, 5.4f);
+        rect (a.holes, 3.0f, 7.5f, 5.0f, 10.2f);
+        glyphs.push_back (std::move (a));
+        x += 8.0f * u + gap;
+    }
+    // R: stem + bowl with a rounded shoulder, diagonal leg.
+    {
+        Glyph r;
+        rect (r.shape, 0.0f, 0.0f, 3.0f, 10.0f);
+        rect (r.shape, 2.95f, 0.0f, 4.65f, 6.2f);
+        quarter (r.shape, 4.6f, 3.1f, 3.1f, 1);
+        rect (r.shape, 4.6f, 3.05f, 7.7f, 6.2f);
+        poly (r.shape, { { 3.0f, 6.15f }, { 6.2f, 6.15f }, { 8.4f, 10.0f }, { 5.2f, 10.0f } });
+        rect (r.holes, 3.0f, 2.4f, 5.0f, 4.1f);
+        glyphs.push_back (std::move (r));
+        x += 8.4f * u + gap;
+    }
+    // L: stem with a rounded top-left shoulder, foot ending in a diagonal cut.
+    {
+        Glyph l;
+        quarter (l.shape, 3.0f, 3.0f, 3.0f, 0);
+        rect (l.shape, 0.0f, 2.95f, 3.05f, 10.0f);
+        rect (l.shape, 2.95f, 0.0f, 3.05f, 3.0f);
+        poly (l.shape, { { 2.95f, 6.9f }, { 6.6f, 6.9f }, { 7.8f, 10.0f }, { 2.95f, 10.0f } });
+        glyphs.push_back (std::move (l));
+        x += 7.8f * u + gap;
+    }
+    // I: a plain stem with a diagonal top cut.
+    {
+        Glyph i;
+        poly (i.shape, { { 0.0f, 1.4f }, { 3.0f, 0.0f }, { 3.0f, 10.0f }, { 0.0f, 10.0f } });
+        glyphs.push_back (std::move (i));
+        x += 3.0f * u + (count > 5 ? gap : 0.0f);
+    }
+    // T: bar with a rounded left shoulder, stem offset to the right.
+    if (count > 5)
+    {
+        Glyph t;
+        quarter (t.shape, 3.0f, 3.0f, 3.0f, 0);
+        rect (t.shape, 2.95f, 0.0f, 8.0f, 3.0f);
+        rect (t.shape, 3.6f, 2.95f, 6.6f, 10.0f);
+        glyphs.push_back (std::move (t));
+        x += 8.0f * u;
+    }
+
+    g.setColour (col);
+    for (auto& gl : glyphs)
+    {
+        if (gl.holes.isEmpty()) { g.fillPath (gl.shape); continue; }
+        // Holes: clip to "bounds minus holes" (even-odd), then fill the solid shape.
+        juce::Graphics::ScopedSaveState save (g);
+        juce::Path clip;
+        clip.addRectangle (gl.shape.getBounds().expanded (2.0f));
+        clip.addPath (gl.holes);
+        clip.setUsingNonZeroWinding (false);
+        g.reduceClipRegion (clip);
+        g.fillPath (gl.shape);
+    }
+    return x - o.x;
+}
+
+
+void doodle::wordmark (juce::Graphics& g, juce::Rectangle<float> r)
+{
+    const float h = r.getHeight();
+    const float letterH = h * 0.7f;
+    const juce::Point<float> o (r.getX(), r.getY() + h * 0.02f);
+    const float w = carlitLetters (g, o, letterH, ui::green, 6);
+
+    // [ACCURACY] tag: an ink block with white letters, signage cross in the corner (like CarliFX's [FX])
+    const auto tf = juce::FontOptions (anton()).withHeight (letterH * 0.62f).withKerningFactor (0.04f);
+    const float tw = ui::textWidth (tf, "ACCURACY") + letterH * 0.5f;
+    auto tag = juce::Rectangle<float> (o.x + w + h * 0.12f, o.y, tw, letterH);
+    g.setColour (ui::green);
+    g.fillRect (tag);
+    g.setColour (ui::card);
+    g.setFont (tf);
+    g.drawText ("ACCURACY", tag.translated (letterH * 0.06f, letterH * 0.03f), juce::Justification::centred, false);
+    const float c = letterH * 0.13f, cx = tag.getX() + letterH * 0.08f, cy = tag.getY() + letterH * 0.08f;
+    g.drawLine (cx, cy, cx + c, cy + c, 2.2f);
+    g.drawLine (cx + c, cy, cx, cy + c, 2.2f);
+
+    auto small = juce::Rectangle<float> (r.getX() + 1.0f, o.y + letterH + h * 0.1f, r.getWidth() + h * 2.0f, h * 0.2f);
+    g.setColour (ui::green.withAlpha (0.9f));
+    g.setFont (juce::FontOptions (ui::font (juce::jlimit (8.0f, 10.5f, h * 0.16f), true)).withKerningFactor (0.12f));
+    g.drawText (juce::String::fromUTF8 ("\xc3\x89" "DITION NOTE PAR NOTE  \xe2\x80\x94  CARLITO AUDIO  \xe2\x80\x94  N\xc2\xb0" "02"), small, juce::Justification::centredLeft, false);
+}
+
 juce::Image doodle::grain (int size)
 {
     juce::Image img (juce::Image::ARGB, size, size, true);
@@ -378,8 +547,9 @@ void mdui::LookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b
 
     if (band)
     {
-        if (on) ui::sticker (g, r, rad, ui::card, ui::card, ui::greenDeep, off);
-        else    ui::sticker (g, r, rad, highlighted ? ui::greenDeep : ui::green, ui::card.withAlpha (0.85f), {}, 0.0f);
+        if (on) ui::sticker (g, r, rad, ui::green.withMultipliedAlpha (alpha), ui::green, ui::night, off);
+        else    ui::sticker (g, r, rad, (highlighted && b.isEnabled() ? ui::lavender : ui::card).withMultipliedAlpha (alpha),
+                             ui::green.withMultipliedAlpha (alpha), ui::night.withMultipliedAlpha (alpha), 3.0f);
         return;
     }
     const juce::Colour fill = on ? ui::green : (highlighted && b.isEnabled() ? ui::tint : ui::card);
@@ -391,7 +561,8 @@ void mdui::LookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b, 
 {
     const bool on = b.getToggleState();
     const bool band = b.getProperties().getWithDefault ("style", "").toString() == "band";
-    juce::Colour c = band ? (on ? ui::green : ui::card) : (on ? ui::card : ui::green);
+    juce::Colour c = on ? ui::card : ui::green;
+    juce::ignoreUnused (band);
     if (! b.isEnabled()) c = c.withAlpha (0.4f);
     g.setColour (c);
     const float size = b.getProperties().getWithDefault ("fontSize", b.getHeight() < 30 ? 13.0f : 15.0f);
