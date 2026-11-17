@@ -271,7 +271,7 @@ void MeloDigProcessor::finishTransfer()
     if (len < (long long) (0.2 * currentSampleRate.load()))
     {
         captureBuffer.clear(); captureBuffer.shrink_to_fit();
-        lastError = "Rien n'a ete enregistre : lance la lecture dans Ableton apres avoir clique sur TRANSFERER.";
+        lastError = "Rien n'a ete enregistre : lance la lecture dans ton logiciel apres avoir clique sur TRANSFERER.";
         return;
     }
     auto c = std::make_shared<Clip>();
