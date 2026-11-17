@@ -48,6 +48,8 @@ public:
 
     bool refresh();                                  // pull a new document version; true if changed
     void zoomToFit();
+    void zoomBy (double factor);                     // horizontal + vertical, around the view centre
+    int zoomPercent() const { return (int) std::lround (pxPerSec / 80.0 * 100.0); }
     void selectAll();
     void clearSelection() { selection.clear(); repaint(); }
     const std::vector<size_t>& getSelection() const { return selection; }
@@ -121,10 +123,13 @@ private:
 
     mdui::LookAndFeel lnf;
     juce::TooltipWindow tooltips { this, 600 };
-    juce::Image pagePattern, bandPattern, grainImage;
+    juce::Image pageImage;
 
     // header
-    juce::TextButton transferButton, playButton, undoButton, redoButton, fitButton;
+    juce::TextButton transferButton, playButton, beforeButton, afterButton, undoButton, redoButton;
+    juce::TextButton zoomOutButton, zoomInButton, fitButton;
+    juce::Rectangle<int> zoomReadout, statusArea;
+    void setListenOriginal (bool);
     juce::String statusText;
 
     // tools / key
