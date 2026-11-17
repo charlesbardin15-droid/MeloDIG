@@ -1,0 +1,56 @@
+workflows:
+  carlitaccuracy-mac:
+    name: Carlitaccuracy macOS
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      xcode: latest
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+    scripts:
+      - name: Tools
+        script: |
+          which cmake || brew install cmake
+          cmake --version
+      - name: Fetch JUCE
+        script: git clone --depth 1 --branch 8.0.4 https://github.com/juce-framework/JUCE.git libs/JUCE
+      - name: Fetch fonts (Bagel Fat One, Anton, Space Grotesk - SIL OFL)
+        script: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/google/fonts.git gf
+          cd gf && git sparse-checkout set ofl/bagelfatone ofl/anton ofl/spacegrotesk && cd ..
+          python3 -m venv /tmp/ft && /tmp/ft/bin/pip install -q fonttools
+          mkdir -p fonts
+          /tmp/ft/bin/pyftsubset gf/ofl/bagelfatone/BagelFatOne-Regular.ttf --unicodes="U+0020-007E,U+00A0-00FF,U+2022,U+2013,U+2014,U+2026,U+2212" --output-file=fonts/BagelFatOne-Latin.ttf
+          /tmp/ft/bin/fonttools varLib.instancer "gf/ofl/spacegrotesk/SpaceGrotesk[wght].ttf" wght=500 -o fonts/SpaceGrotesk-Medium.ttf
+          /tmp/ft/bin/fonttools varLib.instancer "gf/ofl/spacegrotesk/SpaceGrotesk[wght].ttf" wght=700 -o fonts/SpaceGrotesk-Bold.ttf
+          cp gf/ofl/anton/Anton-Regular.ttf fonts/
+          ls -la fonts
+      - name: Engine self-test
+        script: |
+          clang++ -std=c++17 -O2 -ISource tests/engine_test.cpp -o engine_test
+          ./engine_test
+      - name: Configure (universal - Apple Silicon + Intel)
+        script: cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+      - name: Build
+        script: cmake --build build --config Release --target MeloDIG_VST3 MeloDIG_AU -- -quiet
+      - name: Ad-hoc sign and package
+        script: |
+          mkdir -p dist
+          cp -R build/MeloDIG_artefacts/Release/VST3/Carlitaccuracy.vst3 dist/
+          cp -R build/MeloDIG_artefacts/Release/AU/Carlitaccuracy.component dist/
+          codesign --force --deep -s - dist/Carlitaccuracy.vst3
+          codesign --force --deep -s - dist/Carlitaccuracy.component
+          lipo -info dist/Carlitaccuracy.vst3/Contents/MacOS/Carlitaccuracy
+          cd dist && ditto -c -k --keepParent Carlitaccuracy.vst3 Carlitaccuracy-VST3-macOS.zip && ditto -c -k --keepParent Carlitaccuracy.component Carlitaccuracy-AU-macOS.zip
+      - name: Validate AU
+        script: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R dist/Carlitaccuracy.component ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -v aufx Mdg1 Mdig
+    artifacts:
+      - dist/Carlitaccuracy-VST3-macOS.zip
+      - dist/Carlitaccuracy-AU-macOS.zip
