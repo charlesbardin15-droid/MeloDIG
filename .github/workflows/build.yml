@@ -59,3 +59,43 @@ jobs:
           path: |
             dist/Carlitaccuracy-VST3-macOS.zip
             dist/Carlitaccuracy-AU-macOS.zip
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch dependencies
+        run: git clone --depth 1 --branch 8.0.4 https://github.com/juce-framework/JUCE.git libs/JUCE
+
+      - name: Fetch fonts (Bagel Fat One, Anton, Space Grotesk - SIL OFL)
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/google/fonts.git gf
+          cd gf && git sparse-checkout set ofl/bagelfatone ofl/anton ofl/spacegrotesk && cd ..
+          python -m pip install -q fonttools
+          mkdir -p fonts
+          python -m fontTools.subset gf/ofl/bagelfatone/BagelFatOne-Regular.ttf --unicodes="U+0020-007E,U+00A0-00FF,U+2022,U+2013,U+2014,U+2026,U+2212" --output-file=fonts/BagelFatOne-Latin.ttf
+          python -m fontTools.varLib.instancer "gf/ofl/spacegrotesk/SpaceGrotesk[wght].ttf" wght=500 -o fonts/SpaceGrotesk-Medium.ttf
+          python -m fontTools.varLib.instancer "gf/ofl/spacegrotesk/SpaceGrotesk[wght].ttf" wght=700 -o fonts/SpaceGrotesk-Bold.ttf
+          cp gf/ofl/anton/Anton-Regular.ttf fonts/
+          ls -la fonts
+
+      - name: "Configure (Windows x64, newest Visual Studio)"
+        run: cmake -S . -B build -A x64
+
+      - name: Build
+        run: cmake --build build --config Release --target MeloDIG_VST3
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp -R "build/MeloDIG_artefacts/Release/VST3/Carlitaccuracy.vst3" dist/
+          cd dist && 7z a -tzip "Carlitaccuracy-VST3-Windows.zip" "Carlitaccuracy.vst3"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Carlitaccuracy-Windows
+          path: dist/Carlitaccuracy-VST3-Windows.zip
