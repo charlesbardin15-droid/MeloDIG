@@ -39,23 +39,23 @@ jobs:
       - name: Ad-hoc sign and package
         run: |
           mkdir -p dist
-          cp -R build/MeloDIG_artefacts/Release/VST3/MeloDIG.vst3 dist/
-          cp -R build/MeloDIG_artefacts/Release/AU/MeloDIG.component dist/
-          codesign --force --deep -s - dist/MeloDIG.vst3
-          codesign --force --deep -s - dist/MeloDIG.component
-          lipo -info dist/MeloDIG.vst3/Contents/MacOS/MeloDIG
-          cd dist && ditto -c -k --keepParent MeloDIG.vst3 MeloDIG-VST3-macOS.zip && ditto -c -k --keepParent MeloDIG.component MeloDIG-AU-macOS.zip
+          cp -R build/MeloDIG_artefacts/Release/VST3/Carlitaccuracy.vst3 dist/
+          cp -R build/MeloDIG_artefacts/Release/AU/Carlitaccuracy.component dist/
+          codesign --force --deep -s - dist/Carlitaccuracy.vst3
+          codesign --force --deep -s - dist/Carlitaccuracy.component
+          lipo -info dist/Carlitaccuracy.vst3/Contents/MacOS/Carlitaccuracy
+          cd dist && ditto -c -k --keepParent Carlitaccuracy.vst3 Carlitaccuracy-VST3-macOS.zip && ditto -c -k --keepParent Carlitaccuracy.component Carlitaccuracy-AU-macOS.zip
 
       - name: Validate AU
         run: |
           mkdir -p ~/Library/Audio/Plug-Ins/Components
-          cp -R dist/MeloDIG.component ~/Library/Audio/Plug-Ins/Components/
+          cp -R dist/Carlitaccuracy.component ~/Library/Audio/Plug-Ins/Components/
           killall -9 AudioComponentRegistrar || true
           auval -v aufx Mdg1 Mdig
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MeloDIG-macOS
+          name: Carlitaccuracy-macOS
           path: |
-            dist/MeloDIG-VST3-macOS.zip
-            dist/MeloDIG-AU-macOS.zip
+            dist/Carlitaccuracy-VST3-macOS.zip
+            dist/Carlitaccuracy-AU-macOS.zip
