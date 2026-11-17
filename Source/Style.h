@@ -1,21 +1,29 @@
 #pragma once
-// MeloDIG look: same family as FreeTune and FreePitch. Green monochrome, flat "sticker" cards with
+// Carlitaccuracy look: same family as FreeTune and FreePitch. Green monochrome, flat "sticker" cards with
 // thick outlines and hard shadows, chunky display type and small hand-drawn doodles.
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
 namespace ui
 {
-    const juce::Colour green     { 0xff1e4631 };   // primary: deep green
-    const juce::Colour greenDeep { 0xff112e1f };
-    const juce::Colour greenSoft { 0xff4f7a3a };   // secondary green (markers)
-    const juce::Colour tint      { 0xffc9d4b0 };   // light sage
-    const juce::Colour bg        { 0xffdde4c7 };   // page
-    const juce::Colour card      { 0xfff1eddb };   // cream
-    const juce::Colour cardDeep  { 0xffe5e0c8 };   // darker cream (wells, lanes)
-    const juce::Colour ink       { 0xff17201a };
-    const juce::Colour inkSoft   { 0xff56634f };
-    const juce::Colour brown     { 0xff9a5530 };   // pitch accent (coffee)
+    // Carlitaccuracy : BLANC : papier blanc, encre café, notes violettes, fond violet mat
+    const juce::Colour green     { 0xff3b1311 };
+    const juce::Colour greenDeep { 0xff230908 };
+    const juce::Colour greenSoft { 0xff7d5cff };
+    const juce::Colour tint      { 0xffe2dcf3 };
+    const juce::Colour card      { 0xffffffff };
+    const juce::Colour cardDeep  { 0xfff3f0fa };
+    const juce::Colour ink       { 0xff2c0d0b };
+    const juce::Colour inkSoft   { 0xff6b4a52 };
+    const juce::Colour brown     { 0xff7d5cff };
+    const juce::Colour lavender  { 0xffefeaff };
+    const juce::Colour bg        { 0xff141329 };
+    const juce::Colour night     { 0xff121227 };
+    const juce::Colour violet    { 0xffb9a6ff };   // lavender page (under the gradient)
+    const juce::Colour noteFill  { 0xff7d5cff };   // note blobs: lavender violet
+    const juce::Colour rollBg    { 0xffffffff };   // note editor background: white
+    const juce::Colour rollAlt   { 0xfff3f0fa };   // rows outside the scale / black keys
+    const juce::Colour rollLine  { 0xffdcd6ef };
     constexpr float stroke = 2.0f;
 
     juce::FontOptions font (float size, bool bold = false);   // Space Grotesk
@@ -37,6 +45,9 @@ namespace doodle
     void mascot (juce::Graphics&, juce::Rectangle<float>);   // happy note blob with its pitch line
     juce::Image pattern (int size, juce::Colour);
     juce::Image grain (int size);
+    juce::Image gradientPage (int w, int h);
+    float carlitLetters (juce::Graphics&, juce::Point<float> topLeft, float height, juce::Colour, int count = 6);   // CarliFX letters, returns width
+    void wordmark (juce::Graphics&, juce::Rectangle<float>);   // CARLIT letters + [ACCURACY] tag, like CarliFX   // Carlitaccuracy background: soft violet blobs + heavy grain
 }
 
 namespace mdui
