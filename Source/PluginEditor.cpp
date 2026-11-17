@@ -325,11 +325,11 @@ void NoteView::paint (juce::Graphics& g)
         g.setFont (ui::display (26.0f));
         juce::String title, body;
         const auto tr = p.getTransferState();
-        if (tr == MeloDigProcessor::Transfer::armed) { title = fr ("prêt à enregistrer"); body = fr ("Lance la lecture dans Ableton : Carlitaccuracy enregistre la piste. Arrête la lecture quand c'est fini."); }
+        if (tr == MeloDigProcessor::Transfer::armed) { title = fr ("prêt à enregistrer"); body = fr ("Lance la lecture dans ton logiciel : Carlitaccuracy enregistre la piste. Arrête la lecture quand c'est fini."); }
         else if (tr == MeloDigProcessor::Transfer::recording) { title = fr ("enregistrement… ") + num (p.getTransferSeconds(), 1) + " s"; body = fr ("Laisse jouer jusqu'au bout de la partie, puis arrête la lecture."); }
         else if (clip != nullptr && p.isAnalysing()) { title = fr ("analyse des notes…"); body = fr ("Carlitaccuracy cherche les notes et leur hauteur."); }
         else if (clip != nullptr) { title = fr ("pas de note trouvée"); body = fr ("La prise semble vide ou trop bruitée. Retransfère une voix seule (une note à la fois)."); }
-        else { title = fr ("transfère ta voix"); body = fr ("1. Clique sur TRANSFÉRER (en haut).\n2. Lance la lecture dans Ableton : la piste est enregistrée.\n3. Arrête la lecture : les notes apparaissent, tu peux les éditer."); }
+        else { title = fr ("transfère ta voix"); body = fr ("1. Clique sur TRANSFÉRER (en haut).\n2. Lance la lecture dans ton logiciel : la piste est enregistrée.\n3. Arrête la lecture : les notes apparaissent, tu peux les éditer."); }
         g.drawText (title, t.removeFromTop (34), juce::Justification::centredLeft);
         g.setColour (ui::ink);
         g.setFont (ui::font (14.0f, true));
@@ -752,8 +752,8 @@ MeloDigEditor::MeloDigEditor (MeloDigProcessor& p)
         b.setTooltip (tip);
         addAndMakeVisible (b);
     };
-    band (transferButton, fr ("TRANSFÉRER"), fr ("Enregistre la piste pendant qu'Ableton joue (arrête la lecture pour finir)"));
-    band (playButton, fr ("PRÉ-ÉCOUTE"), fr ("Écoute la prise corrigée sans lancer Ableton (clic sur la règle = écouter à partir de là)"));
+    band (transferButton, fr ("TRANSFÉRER"), fr ("Enregistre la piste pendant que ton logiciel joue (arrête la lecture pour finir)"));
+    band (playButton, fr ("PRÉ-ÉCOUTE"), fr ("Écoute la prise corrigée sans lancer la lecture du logiciel (clic sur la règle = écouter à partir de là)"));
     band (undoButton, "ANNULER", fr ("Annuler (Cmd+Z)"));
     band (redoButton, fr ("RÉTABLIR"), fr ("Rétablir (Maj+Cmd+Z)"));
     band (beforeButton, "AVANT", fr ("Écouter la prise d'origine, sans tes retouches"));
@@ -885,7 +885,7 @@ MeloDigEditor::MeloDigEditor (MeloDigProcessor& p)
     gridBox.setSelectedItemIndex (2, juce::dontSendNotification);
     addAndMakeVisible (gridBox);
     macroSlider (quantAmount, quantLabel, "FORCE", 100.0);
-    quantHelp.setText (fr ("Cale le début des notes sur la grille du projet (tempo d'Ableton)."), juce::dontSendNotification);
+    quantHelp.setText (fr ("Cale le début des notes sur la grille du projet (tempo du projet)."), juce::dontSendNotification);
     quantHelp.setFont (ui::font (11.5f, true));
     quantHelp.setColour (juce::Label::textColourId, ui::inkSoft);
     quantHelp.setJustificationType (juce::Justification::topLeft);
@@ -1028,7 +1028,7 @@ void MeloDigEditor::timerCallback()
     redoButton.setEnabled (proc.canRedo());
 
     juce::String s;
-    if (tr == MeloDigProcessor::Transfer::armed) s = fr ("lance la lecture dans Ableton");
+    if (tr == MeloDigProcessor::Transfer::armed) s = fr ("lance la lecture dans ton logiciel");
     else if (tr == MeloDigProcessor::Transfer::recording) s = fr ("enregistrement en cours");
     else if (proc.isAnalysing()) s = fr ("analyse des notes…");
     else if (proc.isRendering()) s = fr ("calcul du son…");
