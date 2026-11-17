@@ -8,7 +8,7 @@ using namespace melodig;
 class MeloDigProcessor::Worker : public juce::Thread
 {
 public:
-    explicit Worker (MeloDigProcessor& p) : juce::Thread ("MeloDIG worker"), owner (p) {}
+    explicit Worker (MeloDigProcessor& p) : juce::Thread ("Carlitaccuracy worker"), owner (p) {}
 
     void requestAnalysis (std::shared_ptr<Clip> c, std::vector<Note> restored, bool isRestored)
     {
@@ -196,7 +196,9 @@ void MeloDigProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         if (lock.isLocked()) { c = playClip; r = rendered; }
     }
     if (c == nullptr || r == nullptr || r->empty()) return;
-    const auto& out = *r;
+    // AVANT : the take as it was recorded, APRÈS : the edited render
+    const bool original = listenOriginal.load() && ! c->data.empty() && ! c->data[0].empty();
+    const auto& out = original ? c->data : *r;
     const long long len = (long long) out[0].size();
     const int rch = (int) out.size();
 
