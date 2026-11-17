@@ -1,5 +1,5 @@
 #pragma once
-// MeloDIG engine: note-based editing of a monophonic recording (voice, solo instrument).
+// Carlitaccuracy engine: note-based editing of a monophonic recording (voice, solo instrument).
 // No JUCE dependency, so it can be tested on its own.
 //
 //   analyse()  : pitch track (YIN, FFT-based) + segmentation into notes ("blobs").
@@ -700,7 +700,8 @@ inline EditCurves buildCurves (const PitchTrack& t, const std::vector<Note>& not
         }
     }
 
-    // Pitch transition between two touching notes: raised-cosine blend over ~35 ms each side.
+    // Pitch transition between two touching notes: raised-cosine blend over ~50 ms each side
+    // (a sung glide between two notes lasts around 100 ms; shorter sounds like a jump).
     // (A note next to silence / unvoiced sound keeps its own pitch right from its start.)
     auto blendBoundaries = [&] (std::vector<float>& v, int r)
     {
@@ -723,7 +724,7 @@ inline EditCurves buildCurves (const PitchTrack& t, const std::vector<Note>& not
         }
         v.swap (out);
     };
-    const int tr = std::max (1, (int) std::lround (0.035 * t.sampleRate / t.hop));
+    const int tr = std::max (1, (int) std::lround (0.050 * t.sampleRate / t.hop));
     blendBoundaries (offset, tr);
     blendBoundaries (c.formant, tr);
     for (int f = 0; f < frames; ++f) c.delta[(size_t) f] = offset[(size_t) f] + dev[(size_t) f];
@@ -922,11 +923,45 @@ private:
             {
                 T = t.sampleRate / midiToHz (std::max (20.0, t.midiAt (p)));
                 marks.push_back ({ p, T, true });
+                // Next mark: the spot one period later whose waveform matches this period best
+                // (cross-correlation), not simply the highest peak. Real voices have several
+                // similar peaks per period whose order changes; following the shape keeps every
+                // grain at the same place in its cycle, which removes roughness ("pitched" sound).
                 const double pred = p + T;
-                int best = (int) std::lround (pred); float bv = -1e9f;
-                for (int k = (int) (pred - 0.2 * T); k <= (int) (pred + 0.2 * T); ++k)
-                    if (k >= 0 && k < len && lp[(size_t) k] > bv) { bv = lp[(size_t) k]; best = k; }
-                p = best > p ? best : pred;
+                const int half = std::max (2, (int) (0.5 * T));
+                const int lo = (int) std::floor (pred - 0.25 * T), hi = (int) std::ceil (pred + 0.25 * T);
+                const int pc = (int) std::lround (p);
+                double bestScore = -2.0; int best = (int) std::lround (pred);
+                std::vector<double> sc ((size_t) std::max (1, hi - lo + 1), -2.0);
+                if (pc - half >= 0 && hi + half < len)
+                {
+                    double ea = 0;
+                    for (int j = -half; j < half; ++j) ea += (double) lp[(size_t) (pc + j)] * lp[(size_t) (pc + j)];
+                    for (int k = lo; k <= hi; ++k)
+                    {
+                        double ab = 0, eb = 0;
+                        for (int j = -half; j < half; ++j) { const double b = lp[(size_t) (k + j)]; ab += (double) lp[(size_t) (pc + j)] * b; eb += b * b; }
+                        const double r = ab / std::sqrt (ea * eb + 1e-18);
+                        const double prior = 1.0 - 0.15 * std::abs (k - pred) / (0.25 * T);   // prefer the expected spot
+                        sc[(size_t) (k - lo)] = r * prior;
+                        if (sc[(size_t) (k - lo)] > bestScore) { bestScore = sc[(size_t) (k - lo)]; best = k; }
+                    }
+                }
+                else
+                {
+                    float bv = -1e9f;
+                    for (int k = std::max (0, lo); k <= std::min (len - 1, hi); ++k) if (lp[(size_t) k] > bv) { bv = lp[(size_t) k]; best = k; }
+                }
+                double next = best;
+                {   // sub-sample position (parabola through the three best scores)
+                    const int i = best - lo;
+                    if (i > 0 && i + 1 < (int) sc.size() && sc[(size_t) i - 1] > -1.5 && sc[(size_t) i + 1] > -1.5)
+                    {
+                        const double y0 = sc[(size_t) i - 1], y1 = sc[(size_t) i], y2 = sc[(size_t) i + 1], den = y0 - 2 * y1 + y2;
+                        if (den < 0) next += std::clamp (0.5 * (y0 - y2) / den, -0.5, 0.5);
+                    }
+                }
+                p = next > p + 0.5 * T ? next : pred;
             }
             s = p;
         }
