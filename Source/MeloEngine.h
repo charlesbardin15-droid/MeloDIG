@@ -1047,7 +1047,7 @@ private:
         for (int s = 0; s < len; ++s)
         {
             const float ws = wsum[(size_t) s];
-            const float floorW = down[(size_t) s] ? 1.0f : 0.05f;
+            const float floorW = down[(size_t) s] ? 1.0f : 0.5f;   // 0.05 boosted tiny grain tails 20x: clicks between syllables
             const float g = ws > floorW ? 1.0f / ws : (ws > 1e-6f ? 1.0f / floorW : 0.0f);
             for (int ch = 0; ch < channels; ++ch) out[(size_t) ch][(size_t) s] *= g;
         }
